@@ -1,0 +1,66 @@
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta http-equiv="X-UA-Compatible" content="IE=edge">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Face detection</title>
+            <script async src="https://docs.opencv.org/4.5.4/opencv.js" type="text/javascript" onload="openCvReady();"></script>
+            <script src="js/utils.js"></script>
+        </head>
+        <body>
+            <video id="camera_input" height="480" width="640"></video>
+            <canvas id="canvas_output"></canvas>
+        </body>
+        <script type="text/JavaScript">
+            function openCvReady() {// This function is called whenever the opencv script is loaded
+                cv['onRuntimeInitialized']=()=>{ //onRuntimeInitialized enables script to be fully loaded before executing the function
+                let video = document.getElementById("camera_input"); // video is the id of video tag
+                navigator.mediaDevices.getUserMedia({ video: true, audio: false }) //use webrtc to get webcam feed
+                .then(function(stream) {
+                    video.srcObject = stream;
+                    video.play();
+                })
+                .catch(function(err) { //catch any errors when loading webcam feed and log it to the console
+                    console.log("An error occurred! " + err);
+                });
+                let src = new cv.Mat(video.height, video.width, cv.CV_8UC4); //matrix element for source
+                let dst = new cv.Mat(video.height, video.width, cv.CV_8UC1); //matrix element for destination
+                let gray = new cv.Mat(); // matrix element for gray frames
+                let cap = new cv.VideoCapture(camera_input); //pass camera input into opencv videoCapture method
+                let faces = new cv.RectVector(); //rectangle vector for face rectangle
+                let classifier = new cv.CascadeClassifier(); //initialize face cascade classifier
+                let faceCascadeFile = 'haarcascade_frontalface_default.xml'; // path to xml
+                let utils = new Utils('errorMessage'); //initialize helper function to load facecascade file
+                utils.createFileFromUrl(faceCascadeFile, faceCascadeFile, () => {//use the createFileFromUrl method to load cascade file
+                classifier.load(faceCascadeFile); // in the callback, load the cascade from file 
+            });
+                const FPS = 24;//set frames per second to 24
+                function processVideo() {
+                    let begin = Date.now();
+                    cap.read(src); //read next video frame 
+                    src.copyTo(dst);//copy source to destination
+                    cv.cvtColor(dst, gray, cv.COLOR_RGBA2GRAY, 0); //convert frame to grayscale
+                    try{
+                        classifier.detectMultiScale(gray, faces, 1.1, 3, 0); //detect faces in camera input
+                        console.log(faces.size()); //log face dimensions in console
+                    }catch(err){
+                        console.log(err);//catch any error when processing video and log in console
+                    }
+                    for (let i = 0; i < faces.size(); ++i) { //draw an ellipse around detected faces
+                        let face = faces.get(i);
+                        let point_center = new cv.Point(Math.floor(face.x + face.width/2),Math.floor(face.y + face.height/2));
+                        let axes = new cv.Size(Math.floor(face.width/1.2),Math.floor(face.height/1.2));
+                        cv.ellipse(dst,point_center, axes, 0, 0, 360, [0, 255, 0, 255], 3)
+                    }
+                    cv.imshow("canvas_output", dst);//display results in canvas 
+                    // schedule next one.
+                    let delay = 1000/FPS - (Date.now() - begin);
+                    setTimeout(processVideo, delay);
+            }
+            // schedule first one.
+            setTimeout(processVideo, 0);
+              };
+            }
+        </script>
+        </html>
